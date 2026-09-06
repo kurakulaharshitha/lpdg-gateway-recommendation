@@ -12,4 +12,4 @@ COPY baseline_3sigma.py .
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "python -m src.generate_predictions && exec python -m uvicorn src.api:app --host 0.0.0.0 --port 8000"]

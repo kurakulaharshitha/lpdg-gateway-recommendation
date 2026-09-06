@@ -1,9 +1,15 @@
 import datetime as dt
+import os
 from pathlib import Path
 
 
-DATA_DIR = Path("data")
-OUTPUT_PATH = Path("predictions.csv")
+DATA_DIR = Path(
+    os.getenv("DATA_DIR", "data")
+)
+
+OUTPUT_PATH = Path(
+    os.getenv("OUTPUT_PATH", "predictions.csv")
+)
 
 METRICS = [
     "offline_duration_sec",

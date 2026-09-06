@@ -4,7 +4,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./data:/app/data:ro
+      - ${DATA_DIR:-./data}:/app/data:ro
       - ./predictions.csv:/app/predictions.csv
     environment:
       - PYTHONUNBUFFERED=1
+      - DATA_DIR=/app/data
+      - OUTPUT_PATH=/app/predictions.csv
