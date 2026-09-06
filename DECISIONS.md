@@ -101,3 +101,18 @@ Choose Machine Learning and attempt to beat the supplied baseline, or choose Dat
 I wanted the submission to demonstrate production-oriented software engineering: clean boundaries, testability, failure handling, reproducibility and an interface another developer can immediately use.
 
 I considered that a stronger and more defensible demonstration of my chosen area than adding a more complex prediction model without enough time to validate it properly.
+---
+
+## Additional judgement on the visit decision
+
+The submission format requires exactly 15 ranked gateways for each scored week, so the generated `predictions.csv` always contains 15 recommendations per Monday.
+
+However, I would not treat 15 as a mandatory operational target in a real deployment.
+
+A field visit costs €380 when nothing is wrong, while leaving a genuinely broken gateway unvisited costs €600 for each week it remains broken. This means the operational decision should eventually depend on expected risk and cost, rather than filling all 15 visit slots automatically.
+
+For this challenge I kept the supplied 3-sigma baseline because my Part 2 focus is Software Development. I did not introduce an unvalidated cost threshold simply to change the ranking.
+
+In a production version, I would evaluate a threshold where a gateway is recommended only when the expected cost of leaving it unvisited is greater than the expected cost of sending an engineer.
+
+This could mean recommending fewer than 15 gateways in a genuinely healthy week, while still respecting 15 as the maximum available field capacity.

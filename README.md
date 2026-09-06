@@ -484,7 +484,7 @@ python -m pytest -v
 Current development result:
 
 ```text
-13 passed
+14 passed
 ```
 
 The test suite covers:
