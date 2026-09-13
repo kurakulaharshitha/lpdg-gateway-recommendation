@@ -1,8 +1,8 @@
-fastapi
-uvicorn[standard]
-pandas
-numpy
-pyarrow
-openpyxl
-httpx
-pytest
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pandas==3.0.5
+numpy==2.5.2
+pyarrow==25.0.1
+openpyxl==3.1.5
+httpx==0.28.1
+pytest==9.1.1
