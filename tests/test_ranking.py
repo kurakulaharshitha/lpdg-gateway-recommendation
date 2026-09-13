@@ -156,3 +156,78 @@ def test_equal_scores_use_gateway_id_as_tiebreak():
         "GATEWAY_A",
         "GATEWAY_B",
     ]
+
+
+def test_gateway_with_no_recent_rows_does_not_disappear():
+    monday = pd.Timestamp(
+        "2026-02-02",
+        tz="UTC",
+    )
+
+    historical_timestamps = pd.date_range(
+        start=monday - pd.Timedelta(days=28),
+        end=monday - pd.Timedelta(days=8),
+        freq="h",
+    )
+
+    recent_timestamps = pd.date_range(
+        start=monday - pd.Timedelta(days=7),
+        end=monday - pd.Timedelta(hours=1),
+        freq="h",
+    )
+
+    rows = []
+
+    # This gateway reported historically,
+    # but is completely silent during the recent 7 days.
+    for timestamp in historical_timestamps:
+        rows.append(
+            {
+                "gateway_id": "SILENT_GATEWAY",
+                "offline_duration_sec": 0,
+                "disconnection_cnt": 0,
+                "reboot_cnt": 0,
+                "ts": timestamp,
+            }
+        )
+
+    # This gateway continues reporting normally.
+    for timestamp in (
+        list(historical_timestamps)
+        + list(recent_timestamps)
+    ):
+        rows.append(
+            {
+                "gateway_id": "ACTIVE_GATEWAY",
+                "offline_duration_sec": 0,
+                "disconnection_cnt": 0,
+                "reboot_cnt": 0,
+                "ts": timestamp,
+            }
+        )
+
+    frame = pd.DataFrame(rows)
+
+    result = rank_gateways_for_week(
+        frame,
+        dt.date(2026, 2, 2),
+    )
+
+    # The silent gateway must still exist in the result.
+    assert "SILENT_GATEWAY" in result["gateway_id"].tolist()
+
+    silent = result[
+        result["gateway_id"]
+        == "SILENT_GATEWAY"
+    ].iloc[0]
+
+    # Silence is not automatically classified as a fault.
+    assert silent["score"] == 0
+
+    # But missing recent telemetry is explicitly visible.
+    assert silent["recent_hours"] == 0
+    assert silent["coverage_ratio"] == 0.0
+
+    assert bool(
+        silent["incomplete_recent_telemetry"]
+    ) is True

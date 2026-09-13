@@ -53,3 +53,14 @@ def test_reasons_are_not_empty():
 
     assert result["reason"].notna().all()
     assert result["reason"].str.strip().ne("").all()
+
+
+def test_reasons_do_not_exceed_300_characters():
+    frame = load_telemetry()
+
+    result = get_weekly_recommendations(
+        dt.date(2026, 2, 2),
+        frame=frame,
+    )
+
+    assert result["reason"].str.len().le(300).all()

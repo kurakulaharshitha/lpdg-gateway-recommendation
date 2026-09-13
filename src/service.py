@@ -95,6 +95,8 @@ def get_weekly_recommendations(
         axis=1,
     )
 
+    # predictions.csv must contain exactly
+    # the challenge-required five columns.
     return top[
         [
             "week_start",
@@ -164,19 +166,41 @@ def get_gateway_explanation(
         "week_start": monday.isoformat(),
         "gateway_id": gateway_id,
         "rank": position,
+
         "selected_for_visit": (
             position
             <= VISITS_PER_WEEK
         ),
+
         "score": float(
             row["score"]
         ),
+
         "first_abnormal_signal": (
             FRIENDLY_METRIC_NAMES.get(
                 metric,
                 "gateway health signals",
             )
         ),
+
+        # Recent telemetry coverage information.
+        "recent_telemetry_hours": int(
+            row["recent_hours"]
+        ),
+
+        "recent_coverage_ratio": round(
+            float(
+                row["coverage_ratio"]
+            ),
+            3,
+        ),
+
+        "incomplete_recent_telemetry": bool(
+            row[
+                "incomplete_recent_telemetry"
+            ]
+        ),
+
         "reason": build_reason(
             row["score"],
             metric,
@@ -221,7 +245,11 @@ def write_predictions(
     frame: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """
-    Regenerate predictions.csv from the current data.
+    Regenerate predictions.csv safely.
+
+    The new output is first written to a temporary
+    file. Only after that succeeds is the existing
+    predictions.csv replaced.
     """
 
     predictions = (
@@ -230,9 +258,19 @@ def write_predictions(
         )
     )
 
+    temporary_path = (
+        output_path.with_suffix(
+            output_path.suffix + ".tmp"
+        )
+    )
+
     predictions.to_csv(
-        output_path,
+        temporary_path,
         index=False,
+    )
+
+    temporary_path.replace(
+        output_path
     )
 
     return predictions
