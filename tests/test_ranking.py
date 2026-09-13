@@ -106,3 +106,53 @@ def test_future_data_is_not_used():
         original_result,
         result_with_future,
     )
+
+
+def test_equal_scores_use_gateway_id_as_tiebreak():
+    monday = pd.Timestamp(
+        "2026-02-02",
+        tz="UTC",
+    )
+
+    timestamps = pd.date_range(
+        start=monday - pd.Timedelta(days=28),
+        end=monday - pd.Timedelta(hours=1),
+        freq="h",
+    )
+
+    rows = []
+
+    # Deliberately insert B before A.
+    # Both gateways have exactly the same telemetry,
+    # so both must receive the same score.
+    for i, timestamp in enumerate(timestamps):
+        for gateway_id in [
+            "GATEWAY_B",
+            "GATEWAY_A",
+        ]:
+            rows.append(
+                {
+                    "gateway_id": gateway_id,
+                    "offline_duration_sec": i % 2,
+                    "disconnection_cnt": i % 3,
+                    "reboot_cnt": i % 5,
+                    "ts": timestamp,
+                }
+            )
+
+    frame = pd.DataFrame(rows)
+
+    result = rank_gateways_for_week(
+        frame,
+        dt.date(2026, 2, 2),
+    )
+
+    # Their scores must tie.
+    assert result["score"].nunique() == 1
+
+    # Even though B was inserted first,
+    # gateway_id must deterministically break the tie.
+    assert result["gateway_id"].tolist() == [
+        "GATEWAY_A",
+        "GATEWAY_B",
+    ]

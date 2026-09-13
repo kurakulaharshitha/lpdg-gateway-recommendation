@@ -161,9 +161,9 @@ def rank_gateways_for_week(
             ),
         )
         .sort_values(
-            "score",
-            ascending=False,
-        )
+    ["score", "gateway_id"],
+    ascending=[False, True],
+)
         .reset_index()
     )
 
