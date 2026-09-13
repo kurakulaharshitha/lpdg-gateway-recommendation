@@ -3,10 +3,12 @@ services:
     build: .
     ports:
       - "8000:8000"
+
     volumes:
       - ${DATA_DIR:-./data}:/app/data:ro
-      - ./predictions.csv:/app/predictions.csv
+      - ./:/host-output
+
     environment:
       - PYTHONUNBUFFERED=1
       - DATA_DIR=/app/data
-      - OUTPUT_PATH=/app/predictions.csv
+      - OUTPUT_PATH=/host-output/predictions.csv
