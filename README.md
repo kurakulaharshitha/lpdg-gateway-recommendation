@@ -22,6 +22,8 @@ Start the complete application with:
 docker compose up --build
 ```
 
+At startup, the container regenerates `predictions.csv` and then starts the API.
+
 Then open the interactive API documentation:
 
 ```text
@@ -55,12 +57,12 @@ For each scored Monday, the service:
 4. Flags values more than 3 standard deviations above that gateway's own baseline.
 5. Counts anomaly breaches.
 6. Ranks gateways from highest to lowest anomaly score.
-7. Returns the top 15 gateways.
-8. Provides a human-readable explanation for each recommendation.
+7. Uses `gateway_id` as a deterministic tie-break when scores are equal.
+8. Keeps historically known gateways visible even when recent telemetry is incomplete or absent.
+9. Returns the top 15 gateways.
+10. Provides a human-readable explanation for each recommendation.
 
-Only telemetry strictly before the prediction Monday is used.
-
-This prevents future-data leakage.
+Only telemetry strictly before the prediction Monday is used. This prevents future-data leakage.
 
 ---
 
@@ -72,7 +74,7 @@ The generated submission file is:
 predictions.csv
 ```
 
-It contains:
+It contains exactly these five columns:
 
 ```text
 week_start
@@ -82,7 +84,7 @@ score
 reason
 ```
 
-The service produces exactly:
+The service produces:
 
 ```text
 8 weeks × 15 gateways = 120 rows
@@ -100,8 +102,6 @@ for:
 2026-03-16
 2026-03-23
 ```
-
-The challenge requires exactly this 120-row structure. :contentReference[oaicite:0]{index=0}
 
 ---
 
@@ -125,8 +125,6 @@ Example response:
 }
 ```
 
----
-
 ### 2. Health Check
 
 ```http
@@ -145,8 +143,6 @@ Example response:
 }
 ```
 
----
-
 ### 3. Weekly Recommendations
 
 ```http
@@ -161,29 +157,7 @@ GET /recommendations/2026-02-02
 
 Returns the 15 highest-priority gateways for that Monday.
 
-Example response:
-
-```json
-{
-  "week_start": "2026-02-02",
-  "count": 15,
-  "recommendations": [
-    {
-      "week_start": "2026-02-02",
-      "rank": 1,
-      "gateway_id": "0A2778A31BE3",
-      "score": 43,
-      "reason": "43 anomaly breach(es) were detected in the last 7 days compared with this gateway's previous 28-day behavior; the first abnormal signal was connection dropouts."
-    }
-  ]
-}
-```
-
-The supplied date must be a Monday.
-
-Invalid dates are returned as a clear HTTP error rather than silently producing a result.
-
----
+The supplied date must be a Monday. Invalid dates return a clear HTTP error.
 
 ### 4. Gateway Explanation
 
@@ -197,7 +171,7 @@ Example:
 GET /gateways/0A2778A31BE3/explanation?week_start=2026-02-02
 ```
 
-Returns information about why a particular gateway appears where it does in the ranking.
+Returns information about why a particular gateway appears where it does in the ranking, including recent telemetry coverage.
 
 Example response:
 
@@ -209,13 +183,14 @@ Example response:
   "selected_for_visit": true,
   "score": 43,
   "first_abnormal_signal": "connection dropouts",
+  "recent_telemetry_hours": 168,
+  "recent_coverage_ratio": 1.0,
+  "incomplete_recent_telemetry": false,
   "reason": "43 anomaly breach(es) were detected in the last 7 days compared with this gateway's previous 28-day behavior; the first abnormal signal was connection dropouts."
 }
 ```
 
 An unknown gateway returns HTTP `404`.
-
----
 
 ### 5. Re-run Predictions
 
@@ -249,27 +224,28 @@ LPDG-Challenge/
 │
 ├── src/
 │   ├── __init__.py
+│   ├── api.py                    # FastAPI HTTP interface
 │   ├── config.py                 # Shared configuration
 │   ├── data_loader.py            # Telemetry loading and validation
+│   ├── generate_predictions.py   # One-command prediction generation
 │   ├── ranking.py                # 3-sigma ranking algorithm
-│   ├── service.py                # Business logic and explanations
-│   └── api.py                    # FastAPI HTTP interface
+│   └── service.py                # Business logic and explanations
 │
 ├── tests/
-│   ├── test_ranking.py
-│   ├── test_service.py
 │   ├── test_api.py
-│   └── test_end_to_end.py
+│   ├── test_data_loader.py
+│   ├── test_end_to_end.py
+│   ├── test_ranking.py
+│   └── test_service.py
 │
-├── baseline_3sigma.py            # Supplied baseline
-├── validate_submission.py        # Supplied validator
+├── baseline_3sigma.py
+├── validate_submission.py
 ├── predictions.csv
-│
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
+├── .dockerignore
 ├── .gitignore
-│
 ├── README.md
 ├── README.txt
 ├── DECISIONS.md
@@ -284,23 +260,23 @@ LPDG-Challenge/
 The application deliberately separates responsibilities.
 
 ```text
-               HTTP Client
-                    |
-                    v
-                FastAPI
-                 api.py
-                    |
-                    v
-               service.py
-                    |
-                    v
-               ranking.py
-                    |
-                    v
-             data_loader.py
-                    |
-                    v
-             data/telemetry
+HTTP Client
+    |
+    v
+FastAPI
+  api.py
+    |
+    v
+service.py
+    |
+    v
+ranking.py
+    |
+    v
+data_loader.py
+    |
+    v
+data/telemetry
 ```
 
 ### `data_loader.py`
@@ -314,11 +290,14 @@ Responsible for:
 
 ### `ranking.py`
 
-Responsible only for:
+Responsible for:
 
 - selecting the historical window
 - calculating gateway-specific statistics
 - identifying 3-sigma anomalies
+- tracking recent telemetry coverage
+- keeping silent/incomplete gateways visible
+- deterministic tie breaking
 - ranking gateways
 
 ### `service.py`
@@ -330,7 +309,7 @@ Responsible for:
 - generating readable reasons
 - explaining individual gateways
 - generating all 8 scored weeks
-- writing `predictions.csv`
+- safely writing `predictions.csv`
 
 ### `api.py`
 
@@ -343,7 +322,7 @@ Responsible for:
 - telemetry caching
 - rerun behaviour
 
-This separation means the ranking implementation can be replaced without changing the API contract, which directly supports the Software Development requirement that ranking can be swapped without changing the API. :contentReference[oaicite:1]{index=1}
+This separation allows the ranking implementation to be replaced without changing the API contract.
 
 ---
 
@@ -419,7 +398,8 @@ docker compose up --build
 The Docker configuration:
 
 - builds the Python environment
-- installs dependencies
+- installs pinned dependencies
+- regenerates `predictions.csv`
 - starts the FastAPI service
 - exposes port `8000`
 - mounts challenge data from `./data`
@@ -432,11 +412,28 @@ The data directory is mounted read-only:
 ./data -> /app/data
 ```
 
-This follows the challenge requirement to mount the supplied data rather than copying it into the image. :contentReference[oaicite:2]{index=2}
+### Alternate data location
+
+By default, Docker uses `./data`.
+
+To use another host data directory in PowerShell:
+
+```powershell
+$env:DATA_DIR="C:\path\to\other\data"
+docker compose up --build
+```
+
+Inside the container, the application still reads from `/app/data`.
 
 ---
 
 ## Generate Predictions
+
+### Through Docker startup
+
+```bash
+docker compose up --build
+```
 
 ### Through the API
 
@@ -444,6 +441,12 @@ Start the application and call:
 
 ```http
 POST /run
+```
+
+### Directly from Python
+
+```bash
+python -m src.generate_predictions
 ```
 
 ### Using the supplied baseline directly
@@ -469,8 +472,6 @@ predictions.csv: OK
 15 ranked gateways for each of 8 weeks, 2026-02-02 to 2026-03-23
 ```
 
-The validator checks the required submission format.
-
 ---
 
 ## Tests
@@ -484,7 +485,7 @@ python -m pytest -v
 Current development result:
 
 ```text
-14 passed
+17 passed
 ```
 
 The test suite covers:
@@ -500,9 +501,13 @@ The test suite covers:
 - invalid non-Monday input
 - gateway explanation
 - unknown gateway handling
+- missing telemetry folder handling
 - fresh telemetry reload regression
 - full end-to-end prediction generation
 - validation using the supplied LPDG validator
+- deterministic tie breaking for equal scores
+- silent or incomplete recent telemetry handling
+- reason length limited to 300 characters
 
 ---
 
@@ -543,7 +548,7 @@ This confirms that the complete application works rather than testing only indiv
 
 Telemetry is cached in memory because repeatedly loading more than one million rows for normal API requests would add unnecessary I/O and latency.
 
-During development I identified a problem with this design:
+During development I identified a stale-data risk:
 
 ```text
 Old telemetry
@@ -557,7 +562,7 @@ New data arrives
 POST /run
 ```
 
-Without cache invalidation, `/run` could potentially reuse stale telemetry.
+Without cache invalidation, `/run` could reuse stale telemetry.
 
 The implementation therefore calls:
 
@@ -581,12 +586,20 @@ Examples include:
 - telemetry dataset empty
 - invalid timestamps
 - missing gateway IDs
-- unsupported prediction dates
 - prediction date that is not a Monday
 - gateway that does not exist
 - insufficient historical telemetry
+- silent or incomplete recent telemetry
 
-Failures return clear messages rather than silently generating potentially incorrect recommendations.
+Failures return clear messages or explicit coverage information rather than silently generating misleading recommendations.
+
+---
+
+## Safe Prediction Writes
+
+`predictions.csv` is first written to a temporary file and only replaces the existing final file after the new write succeeds.
+
+This reduces the risk of leaving a half-written output file if a rerun fails during file generation.
 
 ---
 
@@ -600,6 +613,8 @@ data/
 
 in `.gitignore`.
 
+The same data directory is excluded from the Docker build context through `.dockerignore`.
+
 The application expects data to be placed in:
 
 ```text
@@ -610,9 +625,15 @@ The supplied challenge data is never copied into the Docker image or committed t
 
 ---
 
+## Reproducibility
+
+Python dependencies are pinned in `requirements.txt` so the reviewer installs the same versions used during development and Docker verification.
+
+---
+
 ## Design Decisions
 
-Five important implementation decisions and the alternatives considered are documented in:
+Important implementation decisions and the alternatives considered are documented in:
 
 ```text
 DECISIONS.md
