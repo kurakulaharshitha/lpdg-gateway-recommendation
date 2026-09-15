@@ -629,6 +629,8 @@ The supplied challenge data is never copied into the Docker image or committed t
 
 Python dependencies are pinned in `requirements.txt` so the reviewer installs the same versions used during development and Docker verification.
 
+The application has no runtime dependency on external APIs, cloud accounts, API keys, paid services, model downloads, or a GPU.
+
 ---
 
 ## Design Decisions

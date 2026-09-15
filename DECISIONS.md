@@ -157,3 +157,11 @@ Incrementally update only the newest period.
 
 Why I rejected it:
 Incremental state would add more complexity around cached results, repeated calls and partial failures without providing meaningful value at the current data size.
+
+### Meaning of the score
+
+The `score` is the total number of 3-sigma metric breaches observed for a gateway during the most recent 7 days before the prediction Monday.
+
+A higher score means the gateway showed more abnormal hourly behaviour relative to its own previous 28-day baseline.
+
+The score is a ranking signal, not a probability that the gateway is broken.
