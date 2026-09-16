@@ -1,3 +1,4 @@
+
 # LPDG Gateway Recommendation Service
 
 A production-style API service that ranks gateways for weekly field visits using the supplied 3-sigma anomaly baseline.
@@ -5,6 +6,14 @@ A production-style API service that ranks gateways for weekly field visits using
 The system uses only telemetry available before each Monday, identifies gateways showing unusual recent behaviour, ranks them by anomaly severity, and returns the 15 gateways that should be prioritised for field visits.
 
 This submission focuses on **Software Development** for Part 2 of the LPDG Innovation Hub Selection Challenge.
+
+---
+
+## Demo Recording
+
+6–8 minute walkthrough of my Software Development solution for the LPDG Innovation Hub Challenge.
+
+[Watch the demo recording](https://drive.google.com/file/d/1lbGBeRyhsg0HZCEhFy6svi5tH0IRV6mn/view?usp=sharing)
 
 ---
 
